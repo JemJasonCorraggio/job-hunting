@@ -1,4 +1,7 @@
 import requests
+import json
+import re
+import time
 
 
 def fetch_jobs(url):
@@ -43,3 +46,16 @@ def fetch_job(job_id, organization="cohere"):
     response.raise_for_status()
 
     return response.json()["data"]["jobPosting"]
+
+def fetch_selected_jobs(postings):
+    jobs = []
+
+    for i, posting in enumerate(postings):
+        print(f"Fetching {i + 1}/{len(postings)}: {posting['title']}")
+
+        job = fetch_job(posting["id"])
+        jobs.append(job)
+
+        time.sleep(1)
+
+    return jobs
