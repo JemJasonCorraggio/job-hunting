@@ -1,5 +1,7 @@
 from ashby import fetch_jobs
 from ashby import fetch_selected_jobs
+from agent import evaluate_job
+from agent import rank_jobs_by_title
 import re
 import json
 
@@ -14,77 +16,105 @@ def get_postings(url):
 
     data = json.loads(match.group(1))
 
-    return data["jobBoard"]["jobPostings"]
+    return data["jobBoard"]["jobPostings"], data["jobBoard"]["teams"]
 
 
-def is_candidate_job(job):
-    title = job["title"].lower()
-    location = (job.get("locationName") or "").lower()
-    workplace = (job.get("workplaceType") or "").lower()
+ENGINEERING_INFRA_TEAM_ID = "68960387-27ac-4599-81a6-0b61399ef7eb"
 
-    # Canada / Canadian location
-    canada = (
+
+def is_candidate_job(job, teams):
+    # Find the Engineering & Infra team and its direct children
+    engineering_team_ids = {
+        team["id"]
+        for team in teams
+        if (
+            team["id"] == ENGINEERING_INFRA_TEAM_ID
+            or team["parentTeamId"] == ENGINEERING_INFRA_TEAM_ID
+        )
+    }
+
+    # Check whether Canada is one of the job's locations
+    locations = [job.get("locationName", "")]
+
+    locations.extend(
+        location["locationName"]
+        for location in job.get("secondaryLocations", [])
+    )
+
+    locations = [location.lower() for location in locations]
+
+    canada = any(
         "canada" in location
         or "toronto" in location
         or "ottawa" in location
         or "montreal" in location
         or "vancouver" in location
+        for location in locations
     )
 
-    # Engineering-ish roles
-    engineering = any(
-        word in title
-        for word in [
-            "engineer",
-            "developer",
-            "software",
-            "technical",
-            "site reliability",
-            "data",
-        ]
-    )
+    # Check whether the job belongs to Engineering & Infra
+    engineering = job.get("teamId") in engineering_team_ids
 
-    # Exclude obvious non-target roles
-    excluded = any(
-        word in title
-        for word in [
-            "intern",
-            "internship",
-            "account executive",
-            "sales",
-            "marketing",
-            "recruit",
-            "finance",
-            "tax",
-            "legal",
-            "counsel",
-            "policy",
-            "communications",
-            "customer success",
-        ]
-    )
-
-    return canada and engineering and not excluded
+    return canada and engineering
 
 
 def main():
     url = "https://jobs.ashbyhq.com/cohere"
 
-    postings = get_postings(url)
+    postings, teams = get_postings(url)
 
     candidates = [
         posting for posting in postings
-        if is_candidate_job(posting)
+        if is_candidate_job(posting, teams)
     ]
 
     print(f"Found {len(postings)} total jobs")
     print(f"Found {len(candidates)} candidate jobs")
     print()
 
-    jobs = fetch_selected_jobs(candidates)
+    title_ranking = rank_jobs_by_title(candidates)
+    print(title_ranking)
 
-    print()
-    print(f"Fetched {len(jobs)} full job descriptions")
+    # jobs = fetch_selected_jobs(candidates)
+
+    # print()
+    # print(f"Fetched {len(jobs)} full job descriptions")
+    # print()
+
+    # results = []
+
+    # for i, job in enumerate(jobs):
+    #     print(f"=== Analyzing {i + 1}/{len(jobs)}: {job['title']} ===")
+
+    #     try:
+    #         result = evaluate_job(job)
+    #         analysis = json.loads(result)
+
+    #         results.append({
+    #             "title": job["title"],
+    #             "location": job["locationName"],
+    #             "workplace": job["workplaceType"],
+    #             **analysis,
+    #         })
+
+    #         print(f"Score: {analysis['score']}/10")
+    #         print()
+
+    #     except Exception as e:
+    #         print(f"AI analysis failed: {e}")
+    #         print()
+
+    # results.sort(key=lambda job: job["score"], reverse=True)
+
+    # print()
+    # print("=== RANKING ===")
+
+    # for i, result in enumerate(results):
+    #     print(
+    #         f"{i + 1}. {result['title']} "
+    #         f"({result['score']}/10) "
+    #         f"- apply: {result['apply']}"
+    #     )
 
 
 if __name__ == "__main__":
