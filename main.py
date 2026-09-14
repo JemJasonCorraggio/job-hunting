@@ -73,48 +73,49 @@ def main():
     print()
 
     title_ranking = rank_jobs_by_title(candidates)
-    print(title_ranking)
 
-    # jobs = fetch_selected_jobs(candidates)
+    top_five = json.loads(title_ranking)["ranked_jobs"][:5]
 
-    # print()
-    # print(f"Fetched {len(jobs)} full job descriptions")
-    # print()
+    jobs = fetch_selected_jobs(top_five)
 
-    # results = []
+    print()
+    print(f"Fetched {len(jobs)} full job descriptions")
+    print()
 
-    # for i, job in enumerate(jobs):
-    #     print(f"=== Analyzing {i + 1}/{len(jobs)}: {job['title']} ===")
+    results = []
 
-    #     try:
-    #         result = evaluate_job(job)
-    #         analysis = json.loads(result)
+    for i, job in enumerate(jobs):
+        print(f"=== Analyzing {i + 1}/{len(jobs)}: {job['title']} ===")
 
-    #         results.append({
-    #             "title": job["title"],
-    #             "location": job["locationName"],
-    #             "workplace": job["workplaceType"],
-    #             **analysis,
-    #         })
+        try:
+            result = evaluate_job(job)
+            analysis = json.loads(result)
 
-    #         print(f"Score: {analysis['score']}/10")
-    #         print()
+            results.append({
+                "title": job["title"],
+                "location": job["locationName"],
+                "workplace": job["workplaceType"],
+                **analysis,
+            })
 
-    #     except Exception as e:
-    #         print(f"AI analysis failed: {e}")
-    #         print()
+            print(f"Score: {analysis['score']}/10")
+            print()
 
-    # results.sort(key=lambda job: job["score"], reverse=True)
+        except Exception as e:
+            print(f"AI analysis failed: {e}")
+            print()
 
-    # print()
-    # print("=== RANKING ===")
+    results.sort(key=lambda job: job["score"], reverse=True)
 
-    # for i, result in enumerate(results):
-    #     print(
-    #         f"{i + 1}. {result['title']} "
-    #         f"({result['score']}/10) "
-    #         f"- apply: {result['apply']}"
-    #     )
+    print()
+    print("=== RANKING ===")
+
+    for i, result in enumerate(results):
+        print(
+            f"{i + 1}. {result['title']} "
+            f"({result['score']}/10) "
+            f"- apply: {result['apply']}"
+        )
 
 
 if __name__ == "__main__":

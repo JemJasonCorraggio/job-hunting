@@ -196,8 +196,8 @@ Return ONLY valid JSON in this exact format:
 {{
   "ranked_jobs": [
     {{
-      "job_title": <title>,
-      "job_id": <id>,
+      "title": <title>,
+      "id": <id>,
       "score": <number from 1 to 10>,
       "reason": "<Briefly explain why the TITLE makes it worth investigating based on
 the candidate's background. Explicitly distinguish known information from
@@ -207,6 +207,9 @@ in the title or metadata."
   ]
 }}
 
+Use the exact job ID and exact job title provided for each job.
+Do not modify, abbreviate, or invent either value.
+
 Jobs:
 
 {jobs_text}
@@ -214,7 +217,13 @@ Jobs:
 
     chat = client.chats.create(model=MODEL)
     response = chat.send_message(prompt)
-    return response.text
+
+    text = response.text.strip()
+
+    if text.startswith("```"):
+        text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        
+    return text
 
 if __name__ == "__main__":
     chat = client.chats.create(model=MODEL)
