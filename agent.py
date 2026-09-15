@@ -1,4 +1,5 @@
 from google import genai
+import time
 
 
 client = genai.Client()
@@ -114,7 +115,7 @@ Return only valid JSON. Do not include markdown formatting or any text outside t
 
     chat = client.chats.create(model=MODEL)
 
-    response = chat.send_message(prompt)
+    response = send_message_with_retry(chat, prompt)
 
     return response.text
 
@@ -141,6 +142,10 @@ Your task is NOT to decide whether the candidate should ultimately apply.
 Instead, rank the jobs by which ones are most worth retrieving and reading
 the full job description for.
 
+You have exactly FIVE opportunities to retrieve a full job description.
+Your goal is to select the five jobs whose full descriptions are most likely
+to contain a realistic interview opportunity for this candidate.
+
 Prioritize titles suggesting:
 - backend software engineering
 - platform or infrastructure engineering
@@ -164,10 +169,32 @@ Deprioritize titles that strongly suggest:
 Be especially careful not to assume that a title containing "AI" is
 automatically a strong match.
 
-Do not de-prioritize jobs based on primary location, all jobs on this list should
-have Canada as a location, but it may be a secondary location.
+Also be careful with broad technical titles that may conceal highly
+specialized requirements. For example, a title such as "Software Engineer,
+Data Infrastructure" could represent general backend/platform engineering,
+or it could require highly specialized experience in areas such as
+distributed storage, Kubernetes internals, Spark/Flink, GPU infrastructure,
+or other technologies not evident from the title.
 
-Rank ALL jobs from most to least likely for the candidate to get an interview 
+Do NOT automatically rank a generic technical title highly merely because
+it contains words that overlap with the candidate's experience. Consider
+whether the title suggests a specialized discipline where the candidate may
+have important experience gaps.
+
+When comparing two potentially relevant jobs, prefer the job with:
+- stronger alignment with the candidate's demonstrated experience
+- fewer apparent specialization risks
+- less dependence on experience that is not evident from the candidate profile
+- a broader role that could plausibly encompass the candidate's established background
+
+A role with significant uncertainty can still rank highly if there is
+substantial potential upside. However, account for that uncertainty when
+ranking it.
+
+Do not de-prioritize jobs based on primary location. All jobs on this list
+have Canada as a location, but Canada may be listed as a secondary location.
+
+Rank ALL jobs from most to least likely for the candidate to get an interview
 based only on the information available from the title and metadata.
 
 IMPORTANT:
@@ -180,8 +207,15 @@ job title or metadata.
 You may use the candidate's experience to judge whether a title appears
 promising. For example, an "Infrastructure" role is potentially relevant
 because the candidate has infrastructure experience. However, do not claim
-that the role uses Go, Terraform, AWS, GCP, Elasticsearch, etc. unless that
-information is actually present.
+that the role uses Go, Terraform, AWS, GCP, Elasticsearch, Kubernetes, etc.
+unless that information is actually present.
+
+Similarly, do not treat the candidate's interest in AI or use of AI
+development tools as equivalent to substantial professional experience
+building LLM, agentic, or ML systems.
+
+The candidate's demonstrated experience should carry more weight than
+general areas of interest.
 
 The purpose of this ranking is to decide which jobs deserve retrieval of the
 full job description. It is acceptable for a job with a promising title to
@@ -191,6 +225,10 @@ from the full description.
 The score should represent "promise based on the title and metadata", not
 final candidate-job fit.
 
+Do not try to predict the employer's actual hiring decision beyond what can
+reasonably be inferred from the title and the candidate's demonstrated
+background.
+
 Return ONLY valid JSON in this exact format:
 
 {{
@@ -199,10 +237,10 @@ Return ONLY valid JSON in this exact format:
       "title": <title>,
       "id": <id>,
       "score": <number from 1 to 10>,
-      "reason": "<Briefly explain why the TITLE makes it worth investigating based on
-the candidate's background. Explicitly distinguish known information from
-unknowns. Do not describe technologies or requirements that are not visible
-in the title or metadata."
+      "reason": "<Briefly explain why the TITLE makes it worth investigating
+based on the candidate's demonstrated background. Distinguish direct
+alignment from uncertainty or potential specialization risk. Do not describe
+technologies or requirements that are not visible in the title or metadata."
     }}
   ]
 }}
@@ -216,7 +254,7 @@ Jobs:
 """
 
     chat = client.chats.create(model=MODEL)
-    response = chat.send_message(prompt)
+    response = send_message_with_retry(chat, prompt)
 
     text = response.text.strip()
 
@@ -233,3 +271,24 @@ if __name__ == "__main__":
     )
 
     print(response.text)
+
+def send_message_with_retry(chat, prompt, max_attempts=3):
+    for attempt in range(max_attempts):
+        try:
+            return chat.send_message(prompt)
+
+        except Exception as e:
+            error_text = str(e)
+
+            if "503" not in error_text:
+                raise
+
+            if attempt == max_attempts - 1:
+                raise
+
+            wait_seconds = [2, 5, 10][attempt]
+            print(
+                f"Gemini temporarily unavailable. "
+                f"Retrying in {wait_seconds} seconds..."
+            )
+            time.sleep(wait_seconds)

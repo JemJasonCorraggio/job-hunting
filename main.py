@@ -114,7 +114,8 @@ def main():
         print(
             f"{i + 1}. {result['title']} "
             f"({result['score']}/10) "
-            f"- apply: {result['apply']}"
+            f"- apply: {result['apply']}\n"
+            f"Reasoning: {result['summary']}"
         )
 
 
