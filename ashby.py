@@ -11,7 +11,7 @@ def fetch_jobs(url):
     return response.text
 
 
-def fetch_job(job_id, organization="cohere"):
+def fetch_job(job_id, organization):
     url = "https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobPosting"
 
     query = """
@@ -47,13 +47,13 @@ def fetch_job(job_id, organization="cohere"):
 
     return response.json()["data"]["jobPosting"]
 
-def fetch_selected_jobs(postings):
+def fetch_selected_jobs(postings, organization):
     jobs = []
 
     for i, posting in enumerate(postings):
         print(f"Fetching {i + 1}/{len(postings)}: {posting['title']}")
 
-        job = fetch_job(posting["id"])
+        job = fetch_job(posting["id"], organization)
         jobs.append(job)
 
         time.sleep(1)

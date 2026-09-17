@@ -4,6 +4,16 @@ from agent import evaluate_job
 from agent import rank_jobs_by_title
 import re
 import json
+import sys
+
+JOB_BOARDS = {
+    "cohere": {
+        "company": "Cohere",
+        "organization": "cohere",
+        "url": "https://jobs.ashbyhq.com/cohere",
+        "team_id": "68960387-27ac-4599-81a6-0b61399ef7eb"
+    },
+}
 
 
 def get_postings(url):
@@ -22,14 +32,14 @@ def get_postings(url):
 ENGINEERING_INFRA_TEAM_ID = "68960387-27ac-4599-81a6-0b61399ef7eb"
 
 
-def is_candidate_job(job, teams):
+def is_candidate_job(job, teams, team_id):
     # Find the Engineering & Infra team and its direct children
     engineering_team_ids = {
         team["id"]
         for team in teams
         if (
-            team["id"] == ENGINEERING_INFRA_TEAM_ID
-            or team["parentTeamId"] == ENGINEERING_INFRA_TEAM_ID
+            team["id"] == team_id
+            or team["parentTeamId"] == team_id
         )
     }
 
@@ -59,13 +69,29 @@ def is_candidate_job(job, teams):
 
 
 def main():
-    url = "https://jobs.ashbyhq.com/cohere"
+    if len(sys.argv) != 2:
+        print("Usage: python main.py <job_board>")
+        print(f"Available job boards: {', '.join(JOB_BOARDS)}")
+        sys.exit(1)
 
-    postings, teams = get_postings(url)
+    board_name = sys.argv[1].lower()
+
+    if board_name not in JOB_BOARDS:
+        print(f"Unknown job board: {board_name}")
+        print(f"Available job boards: {', '.join(JOB_BOARDS)}")
+        sys.exit(1)
+
+    board = JOB_BOARDS[board_name]
+
+    print(f"=== {board['company']} ===")
+    print()
+
+    postings, teams = get_postings(board["url"])
 
     candidates = [
-        posting for posting in postings
-        if is_candidate_job(posting, teams)
+        posting
+        for posting in postings
+        if is_candidate_job(posting, teams, board["team_id"])
     ]
 
     print(f"Found {len(postings)} total jobs")
@@ -76,7 +102,10 @@ def main():
 
     top_five = json.loads(title_ranking)["ranked_jobs"][:5]
 
-    jobs = fetch_selected_jobs(top_five)
+    jobs = fetch_selected_jobs(
+        top_five,
+        organization=board["organization"],
+    )
 
     print()
     print(f"Fetched {len(jobs)} full job descriptions")
@@ -117,7 +146,6 @@ def main():
             f"- apply: {result['apply']}\n"
             f"Reasoning: {result['summary']}"
         )
-
 
 if __name__ == "__main__":
     main()
